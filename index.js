@@ -1,82 +1,116 @@
-const express = require("express");
-const app = express();
-const port = process.env.PORT || 5000;
+const express = require('express')
+const bodyParser = require("body-parser");
+const app = express()
+const cors = require('cors');
 
-//middleware
-const cors = require("cors");
-require("dotenv").config();
-const MongoClient = require("mongodb").MongoClient;
-const ObjectID = require("mongodb").ObjectID;
+require('dotenv').config();
+const { MongoClient } = require('mongodb');
+const ObjectId = require("mongodb").ObjectId;
+const port = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.korjs.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
+const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
 app.get("/", (req, res) => {
-  res.send("connected");
+  res.send("Travella Server");
 });
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.jxarj.mongodb.net/${process.env.DB_NAME}?retryWrites=true&w=majority`;
 
-
-console.log(uri);
-
-const client = new MongoClient(uri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
 client.connect((err) => {
-  const serviceCollection = client.db("Travella").collection("serviceList");
-  const bookingCollection = client.db("Travella").collection("bookingList");
+  const productsCollection = client.db("Travella").collection("products");
+  const usersCollection = client.db("Travella").collection("users");
+  const ordersCollection = client.db("Travella").collection("orders");
 
-  app.get("/services", (req, res) => {
-    serviceCollection.find().toArray((err, items) => {
-      res.send(items);
-    });
+
+  //add A Product
+  app.post("/addProducts", async (req, res) => {
+    const result = await productsCollection.insertOne(req.body);
+    res.send(result);
   });
 
-  app.delete("/delete/:id", (req, res) => {
-    const id = ObjectID(req.params.id);
-    serviceCollection.findOneAndDelete({ _id: id }).then((result) => {
-      console.log("deleted successfully");
-      res.send(result.insertedCount > 0);
-    });
+  // get all Product
+  app.get("/allProducts", async (req, res) => {
+    const result = await productsCollection.find({}).toArray();
+    res.send(result);
+  });
+
+  // Product Details 
+
+  app.get("/singleProduct/:id", async (req, res) => {
+    const result = await productsCollection
+      .find({ _id: ObjectId(req.params.id) })
+      .toArray();
+    res.send(result[0]);
+  });
+
+  // insert order 
+
+  app.post("/addOrders", async (req, res) => {
+    const result = await ordersCollection.insertOne(req.body);
+    res.send(result);
+  });
+
+  /// all order
+  app.get("/allOrders", async (req, res) => {
+    const result = await ordersCollection.find({}).toArray();
+    res.send(result);
+  });
+
+  //  my order
+
+  app.get("/myOrder/:email", async (req, res) => {
+    const result = await ordersCollection
+      .find({ email: req.params.email })
+      .toArray();
+    res.send(result);
+  });
+
+  //Delete Order 
+
+  app.delete("/delete/:id", async (req, res) => {
+    const id = req.params.id;
+    const query = { _id: ObjectId(id) };
+    const result = await ordersCollection.deleteOne(query);
+    res.json(result);
+  });
+
+
+  //Delete Product 
+
+  app.delete("/pdelete/:id", async (req, res) => {
+    const id = req.params.id;
+    const query = { _id: ObjectId(id) };
+    const result = await productsCollection.deleteOne(query);
+    res.json(result);
   });
 
 
 
-  app.post("/create", (req, res) => {
-    const title = req.body.title;
-    const price = req.body.price;
-    const image = req.body.image;
-    const description = req.body.description;
-    serviceCollection
-      .insertOne({ title, image, price, description })
-      .then((result) => {
-        console.log("count", result.insertedCount);
-        res.send(result.insertedCount > 0);
-      });
+  //Make user 
+  app.post("/addUserInfo", async (req, res) => {
+    console.log("req.body");
+    const result = await usersCollection.insertOne(req.body);
+    res.send(result);
+    console.log(result);
   });
 
 
 
-  app.post("/addBook", (req, res) => {
-    const book = req.body;
-    bookingCollection.insertOne(book).then((result) => {
-      console.log("count", result.insertedCount);
-      res.send(result.insertedCount > 0);
+  // status update
+  app.put("/statusUpdate/:id", async (req, res) => {
+    const filter = { _id: ObjectId(req.params.id) };
+    console.log(req.params.id);
+    const result = await ordersCollection.updateOne(filter, {
+      $set: {
+        status: req.body.status,
+      },
     });
-  });
-
-  app.get("/allBooking", (req, res) => {
-    bookingCollection.find().toArray((err, items) => {
-      res.send(items);
-    });
-  });
-
-  app.get("/checkoutData/:id", (req, res) => {
-    const id = ObjectID(req.params.id);
-    serviceCollection.find({ _id: id }).toArray((err, items) => {
-      res.send(items[0]);
-    });
+    res.send(result);
+    console.log(result);
   });
 });
+
 app.listen(process.env.PORT || port);
